@@ -1,0 +1,50 @@
+int comb1 = 0;
+ int comb2 = 0;
+ int cond = 0;
+ 
+ float set = 40.0;
+ unsigned long state1 = 0;
+ unsigned long state2 = 0;
+
+void setup() { 
+  
+   pinMode (encA, INPUT);
+   pinMode (encB, INPUT);
+   
+   Serial.begin (9600);                       
+} 
+
+ void loop() { 
+  
+    if ((digitalRead(encA) == LOW) && (digitalRead(encB) == HIGH) && (comb1 != 1)) {      //проверяет - какой из пинов первый начал движение - для часовой стрелки
+    state1 = millis ();
+    comb1 = 1;                                                                      //блокируем взятие дальше множества состояний при достижении нужного
+    cond = 0;
+    }
+    else if ((digitalRead(encA) == HIGH) && (digitalRead(encB) == LOW) && (comb2 != 1)) {   //проверяет вращение против часовой
+    state2 = millis ();
+    comb2 = 1;
+    cond = 0;
+    }
+                                                                                //разница между движением по часовой или против - какая комбинация появиться первой
+                                                                                  //  А 1 0  .Если по часовой - то 1 0 а потом 0 1 у АВ, если против то вначале  0 1 а потом 1 0 у АВ
+                                                                                  //  В 0 1  .
+    if ((digitalRead(encA) == LOW) && (digitalRead(encB) == LOW)) { //сбрасываем блокировку считывания состояния комбинаций - чтобы они не внесли погрешность
+    comb1 = 0;
+    comb2 = 0;
+      if ((state1 > state2) && (cond != 1)) { //проверяем - какая из комбинаций была первой - а отсюда и движение - либо против часовой либо по
+          if (set <= 69.5) {
+          set = (set + 0.5);
+          }
+      cond = 1;                              //блокиратор многоразового плюсования аргумента - один раз прибавили или отняли и все!!
+      Serial.println(set,1);
+      }
+      else if ((state2 > state1)&& (cond != 1)) { //проверяем обратную первой комбинацию и выводим на порт значение
+          if (set >= 20.5) {
+          set = (set - 0.5);
+          }
+      cond = 1;
+      Serial.println(set,1);
+      }
+    }
+ }
