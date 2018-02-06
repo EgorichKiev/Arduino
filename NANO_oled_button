@@ -1,0 +1,75 @@
+#include <SPI.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+int OLED_RESET = 4; //reset pin from oled to arduino
+Adafruit_SSD1306 display(OLED_RESET);
+
+int button = 3;
+int page = 0;
+
+void setup() {
+  
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C); // initialize with the I2C addr 0x3C (for the 128x32)
+                                                     
+  pinMode(button, INPUT);
+  
+}
+
+void loop() {
+  
+  if (digitalRead(button) == LOW && page<3) {        //switch the pages of menu with button
+  page++;
+  delay (700);
+  }
+  else if (digitalRead(button) == LOW && page==3) {
+  page = 0;
+  delay (700);  
+  }
+
+switch (page) {
+
+    case 0:{    
+      display.clearDisplay (); 
+      display.setCursor(0,0); // Set the cursor at the beginning of the display
+      display.setTextSize(2); // Set the text size
+      display.setTextColor(WHITE);
+      display.println("Page 0 Ухты");
+      display.display();
+    }
+    break;  
+      
+    case 1:{     //Design of page 2
+      display.clearDisplay ();
+      display.setCursor(0,0); // Set the cursor at the beginning of the display
+      display.setTextSize(2); // Set the text size
+      display.setTextColor(WHITE);
+      display.println("Page 1");
+      display.display();
+    }
+    break;
+
+    case 2: { //Design of page 3 
+      display.clearDisplay ();
+      display.setCursor(0,0); // Set the cursor at the beginning of the display
+      display.setTextSize(2); // Set the text size
+      display.setTextColor(WHITE);
+      display.println("Page 2");
+      display.display();
+    }
+    break;
+
+    case 3: {   //Design of page 4
+      display.clearDisplay ();
+      display.setCursor(0,0); // Set the cursor at the beginning of the display
+      display.setTextSize(2); // Set the text size
+      display.setTextColor(WHITE);
+      display.println("Page 3");
+      display.display();
+    }
+    break;
+    
+  }//switch end
+  
+}
