@@ -14,7 +14,7 @@ float temperature = 0;
 int measurements = 10;
 
 void setup() {
-  pinMode(A0, INPUT); // Use A0 to measure the temperature sensor's output
+  pinMode(A0, INPUT);                             // Use A0 to measure the temperature sensor's output
   keyboard.begin(DataPin, IRQpin);
   
   lcd.begin(20, 4);
@@ -24,7 +24,7 @@ void setup() {
   lcd.print("Resistance=    Ohm");
   lcd.setCursor(0, 2);
   lcd.print("Fusion t=    sec.");
-  lcd.setCursor(0,3); // Set the cursor at the beginning of the display
+  lcd.setCursor(0,3);                               // Set the cursor at the beginning of the display
   lcd.print("Temperature:");
       
 }
@@ -32,58 +32,55 @@ void setup() {
 void loop() {
   readings = 0; // Reset the analog readings to 0
 
-  for(int i=0; i<measurements; i++){ // Make multiple measurements to take average from, avoiding large fluctuations
-  readings += analogRead(A0); // Read the temperature sensor's output
+  for(int i=0; i<measurements; i++){                  // Make multiple measurements to take average from, avoiding large fluctuations
+  readings += analogRead(A0);                         // Read the temperature sensor's output
   delay(100);
   }
-  temperature = ((((((readings/measurements) * 5.0)/1024) - 0.5) * 100) - 13); // Convert the average voltage output to degrees Celsius
+  temperature = ((((((readings/measurements) * 5.0)/1024) - 0.5) * 100) - 13);    // Convert the average voltage output to degrees Celsius
+  
   lcd.setCursor(13,3);
-  lcd.print(temperature,1); // Print temperature with single decimal
+  lcd.print(temperature,1);                           // Print temperature with single decimal
    if (keyboard.available()) {
 
     char c = keyboard.read();
-    
-    
+        
     if (c == PS2_ENTER) {
     int x = 0;
     } 
     else {
     x++;  
-     if (x == 13) {
+    if (x == 13) {
      lcd.setCursor(8, 0); 
      lcd.print (c);  
      }
-     if (x == 14) {
+    if (x == 14) {
      lcd.setCursor(9, 0); 
      lcd.print (c);
      } 
-     if (x == 15) {
+    if (x == 15) {
      lcd.setCursor(11, 1); 
      lcd.print (c);  
      }
-     if (x == 16) {
+    if (x == 16) {
      lcd.setCursor(12, 1); 
      lcd.print (c);
      }
-     if (x == 17) {
+    if (x == 17) {
      lcd.setCursor(13, 1); 
      lcd.print (c);  
      }
-     if (x == 19) {
+    if (x == 19) {
      lcd.setCursor(9, 2); 
      lcd.print (c);  
      }
-     if (x == 20) {
+    if (x == 20) {
      lcd.setCursor(10, 2); 
      lcd.print (c);
      }
-     if (x == 21) {
+    if (x == 21) {
      lcd.setCursor(11, 2); 
      lcd.print (c);  
      }
     }    
-
-  
-    
  }
 }
