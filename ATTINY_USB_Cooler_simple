@@ -1,0 +1,114 @@
+uint32_t readings = 0;
+uint32_t t = 0;
+uint32_t t2 = 0;
+bool t3 = 0;
+uint32_t tSet = 0;
+uint32_t w = 0;
+uint32_t w2 = 0;
+bool z = 0;
+bool coolBegin = 0;
+bool coolStop = 0;
+
+
+void setup() {                
+  pinMode(A1, INPUT);     // tmp36
+  pinMode(A0, INPUT);     // potentiometer... v upr. only to 1/2 vcc!!! free to use - D0 - pwm motor D1 (led buildin) - hot led D3 - cool led D4 - busser
+  pinMode(0, OUTPUT);     // D0 - PWM OF COOLER
+  pinMode(4, OUTPUT);     // D4 - HOT LED
+  pinMode(3, OUTPUT);     // D3 - COOL LED... когда грузиться при старте бутлодер ардуино - появляется единица на этом выходе, т.е. его можно только под постоянно вкл. индикацию ставить!
+  pinMode(1, OUTPUT);     // D1 - BUZZER
+}
+
+void loop() {
+  while (1) {
+    
+    w = (millis ())/1000;
+    void setTempCycle ();
+    void TempCycle();
+    
+    if (!t3) {
+      t2 = t;
+      t3 = 1;
+    }
+    
+    if (w == 15) {
+      if (t2 < (t + 5.0)) {
+      cool (1);  
+      }
+    }
+    if ((w == 45) && (tSet > t)) {
+      cool (0);    
+    }
+
+    if (coolStop) {                                 
+      if (!z && (w == w2)) {
+      w2 = w + 1;
+      digitalWrite (3, 1);
+      digitalWrite (4, 1);
+      z = 1;    
+      }
+      else if (z && (w == w2)) {
+      w2 = w + 1;
+      digitalWrite (3, 0);
+      digitalWrite (4, 0);
+      z = 0;  
+      }
+    } else {
+      if ((t > tSet) && !coolBegin) {
+        coolBegin = 1;
+        cool (1);
+      }
+      if ((t < (tSet - 3.0)) && coolBegin) {
+        cool (0);
+        sound ();
+      }
+      if (w = 600) {
+        cool (0);
+        w2 = w + 1;
+        coolStop = 1;
+      }
+    }
+  }
+}
+
+void cool (bool coolOn) {
+  if (coolOn) {
+    digitalWrite (0, 1);
+    digitalWrite (4, 1);
+    digitalWrite (3, 0);
+  } else {
+    digitalWrite (0, 0);
+    digitalWrite (4, 0);
+    digitalWrite (3, 1);  
+  }
+}
+
+void setTempCycle () {
+tSet = map(analogRead(A0), 0, 1023, 0, 70); 
+}
+
+void TempCycle() {
+    for (int8_t i = 0; i < 10; i++ )  {                                        // Make multiple measurements - 10 to take average from, avoiding large fluctuations
+    readings += analogRead(A1);                                                        // Read the temperature sensor's output
+    }  
+    uint32_t voltage = ((readings/10) * 5.0);                                 // 3.3 - if vcc 3.3v = x*3.3... if vcc = 5.0v - then we need to x*5.0
+    voltage /= 1024.0;
+    t = (voltage - 0.5) * 100 ;
+}
+
+void sound () {    
+float noteFrequency [16] = {3520, 3135.96, 2637.02, 2093, 2349.32, 3951.07, 2793.83, 4186.01, 3520, 3135.96, 2637.02, 2093, 2349.32, 3951.07, 2793.83, 4186.01};
+for (int i = 0; i < 16; i++){
+  int j;
+  float microsecondsPerWave = 1000000/noteFrequency [i];                    // Convert the frequency to microseconds
+  float millisecondsPerCycle = 1000/(microsecondsPerWave * 2);          // Calculate how many HIGH/LOW cycles there are per millisecond
+  float loopTime = 100 * millisecondsPerCycle;                          // Multiply noteDuration * number or cycles per millisecond
+                                                                      // Play the note for the calculated loopTime.
+  for ( j = 0; j < loopTime; j++ ) {   
+    digitalWrite (1, 1); 
+    delayMicroseconds(microsecondsPerWave); 
+    digitalWrite (1, 0); 
+    delayMicroseconds(microsecondsPerWave); 
+    } 
+  } 
+}      
