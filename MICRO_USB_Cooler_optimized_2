@@ -3,10 +3,7 @@
 #include <Adafruit_GFX.h>
 #include <EEPROM.h>
 
-/*
- *  доработать с языковой настройкой  
- *  доработать с тихим-шумным режимом
- * 
+
 //Arduino - Oled
 // D2     - D1
 // D3     - D0
