@@ -1,0 +1,64 @@
+/*
+ * 2,02V on pin with button 1 (setup)          0,59      603
+ * 2,79V on pin with button 2 (emergency)      0,82      838
+ * 3,40V on pin - without button               1        1023
+ * 
+ * 
+ * 
+ */
+
+bool x;
+uint32_t y;
+uint32_t z;
+
+void setup() {
+pinMode (A0, INPUT_PULLUP);
+pinMode (4, OUTPUT);
+pinMode (3, OUTPUT);
+pinMode (2, OUTPUT);
+pinMode (1, OUTPUT);
+pinMode (0, OUTPUT);
+digitalWrite (4, 0);
+digitalWrite (3, 0);
+digitalWrite (2, 0);
+digitalWrite (1, 0);
+digitalWrite (0, 0);
+}
+
+void loop() {
+  while (1) {
+    y = millis () / 1000;
+    switch (analogRead (A0)) {
+      case 450 ... 650: {
+        digitalWrite (3, 1); 
+        sound ();   
+      } break;
+      case 750 ... 850: {
+        digitalWrite (4, 1); 
+      } break;
+      default : {
+        digitalWrite (4, 0);
+        digitalWrite (2, 0);
+        digitalWrite (1, 0);
+        digitalWrite (0, 0);
+      } break;
+    }
+  }
+}
+
+void sound () {    
+float noteFrequency [16] = {3520, 3135.96, 2637.02, 2093, 2349.32, 3951.07, 2793.83, 4186.01, 3520, 3135.96, 2637.02, 2093, 2349.32, 3951.07, 2793.83, 4186.01};
+for (int i = 0; i < 16; i++){
+  int j;
+  float microsecondsPerWave = 1000000/noteFrequency [i];                    // Convert the frequency to microseconds
+  float millisecondsPerCycle = 1000/(microsecondsPerWave * 2);          // Calculate how many HIGH/LOW cycles there are per millisecond
+  float loopTime = 100 * millisecondsPerCycle;                          // Multiply noteDuration * number or cycles per millisecond
+                                                                      // Play the note for the calculated loopTime.
+  for ( j = 0; j < loopTime; j++ ) {   
+    digitalWrite (2, 1); 
+    delayMicroseconds(microsecondsPerWave); 
+    digitalWrite (2, 0); 
+    delayMicroseconds(microsecondsPerWave); 
+    } 
+  } 
+}  
