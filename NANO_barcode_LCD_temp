@@ -45,7 +45,7 @@ void loop() {
     char c = keyboard.read();
         
     if (c == PS2_ENTER) {
-    int x = 0;
+    x = 0;
     } 
     else {
     x++;  
