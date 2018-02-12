@@ -1,0 +1,56 @@
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <OneWire.h>
+
+int OLED_RESET = 5;                                 //reset pin from oled to arduino
+Adafruit_SSD1306 display(OLED_RESET);
+OneWire  ds(14);                                   // on pin 10 (a 4.7K resistor is necessary)
+
+void setup() {
+   
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);        // initialize with the I2C addr 0x3C (for the 128x32)
+  display.clearDisplay ();
+  
+}
+
+void loop() {
+
+byte i;
+  byte present = 0;
+  byte data[12];
+  byte addr[8];
+  float celsius;
+  
+  if (!ds.search(addr)) {
+    ds.reset_search();
+    delay(850);
+    return;
+  }
+  
+  ds.reset();
+  ds.select(addr);
+  ds.write(0x44, 1);                   // start conversion, with parasite power on at the end
+  
+  delay(800);                         // maybe 750ms is enough, maybe not
+                                      // we might do a ds.depower() here, but the reset will take care of it.
+  
+  present = ds.reset();
+  ds.select(addr);    
+  ds.write(0xBE);                       // Read Scratchpad
+
+  for ( i = 0; i < 9; i++) {           // we need 9 bytes
+  data[i] = ds.read();
+  }
+  int16_t raw = (data[1] << 8) | data[0];
+     
+  celsius = (float)raw / 16.0;
+  display.clearDisplay ();
+    display.setCursor(0,0); // Set the cursor at the beginning of the display
+    display.setTextSize(2); // Set the text size
+    display.setTextColor(WHITE);
+    display.print("Temperatur ");
+    display.print(celsius);
+    display.println(" C");
+    display.display();  
+ 
+} 
