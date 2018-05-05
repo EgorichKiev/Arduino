@@ -1,0 +1,886 @@
+#include <PS2Keyboard.h>                            //work only on pin 2 and pin 3!!!! do not relokatte
+#include <LiquidCrystal.h>
+#include <Wire.h>
+#include <RTClib.h>                                 //works only on i2C!!!
+#include <SD.h>                                     //with 4Gb flash drive - approx. 1 190 000 protocols can be save to full memory card!!!!!!!!!!!
+#include <SPI.h>                                     //SD card need all SPI pins!!!!
+#include <EEPROM.h>
+
+#define SELECTOR 14
+#define ENTER 15
+#define CLOCK_PS 3
+#define DATA_PS 4
+#define TEMP A6
+
+LiquidCrystal lcd(10, 17, 8, 7, 6, 5);
+PS2Keyboard keyboard;                                 //WARNING!!! FOR CORRECT READING OF BARCODE SCANER NEED CHANGE IN LIBRARY OF PS2KEYBOARD BUFFER_SIZE TO 64 FROM 45!!!!!
+RTC_DS1307 rtc;
+
+File myFile;
+
+uint8_t o [33] = { 65, 160, 66, 161, 224, 69, 162, 163, 164, 165, 166, 75, 167, 77, 72, 79, 168, 80, 67, 84, 169, 170, 88, 225, 171, 172, 226, 173, 174, 196, 175, 176, 177 };
+word page;
+char c;
+word w = 0;
+uint8_t x = 0;
+uint8_t daY;
+uint8_t  montH;
+uint16_t  yeaR;
+uint8_t  houR;
+uint8_t  minutE;
+uint16_t number = 0;
+
+float voltage;
+float res;
+word timerWeld;
+
+float u = 24.0;
+int arrayBarcode [24];
+word timeWeld = 10;
+bool opinion;
+uint32_t timer;
+uint32_t timer2;
+uint8_t counter;
+char place [10];
+char welder [10];
+
+uint32_t stateOn;
+uint32_t stateOff;
+uint32_t stateOn2;
+uint32_t stateOff2;
+word nextSymbol;
+word nextSymbol2;
+word nextSymbol3;
+bool timerSwitch1;
+bool timerSwitch2;
+bool timerSwitch3;
+bool timerSwitch4;
+bool timerSwitch5;
+bool timerSwitch6;
+bool timerSwitch7;
+bool timerSwitch8;
+
+
+bool clickSymbol;
+bool clickSymbol2;
+
+float temperature = 0;
+float r = 0;
+float r2 = 0;
+float r3 = 0;
+
+word AC_LOAD = 9;    // Output to Opto Triac pin
+word dimming = 128;  // Dimming level (0-128)  0 = ON, 128 = OFF
+
+void softReset();
+
+void setup() {
+  SD.begin(16);
+  pinMode(TEMP, INPUT);                             // Use A to measure the temperature sensor's output
+  pinMode(SELECTOR, INPUT_PULLUP);                    //selector
+  pinMode(ENTER, INPUT_PULLUP);                    //enter
+
+  keyboard.begin(DATA_PS, CLOCK_PS);                 //DataPin, IRQpin
+  lcd.begin(20, 4);
+  rtc.begin();
+
+  //  rtc.adjust(DateTime(2018, 4, 23, 20, 38, 0));                     //run load once scetch with new time, second upload need to be commented
+
+  pinMode(AC_LOAD, OUTPUT);// Set AC Load pin as output
+  attachInterrupt(0, zero_crosss_int, RISING);  // Choose the zero cross interrupt # from the table above
+}
+
+void loop() {
+
+  DateTime now = rtc.now();
+  daY = (now.day());
+  montH = (now.month());
+  yeaR = (now.year());
+  houR = (now.hour());
+  minutE = (now.minute());
+
+  switch (page) {
+
+    case 0: {
+        lcd.setCursor(0, 0);
+        lcd.print(F("                    "));
+        lcd.setCursor(0, 1);
+        lcd.print(F("    Welder v1.0     "));
+        lcd.setCursor(0, 2);
+        lcd.print(F("  Welcome to test   "));
+        lcd.setCursor(0, 3);
+        lcd.print(F("                    "));
+        delay (2000);
+        page = 1;
+      } break;
+
+    case 1: {                                                     //ввести корректировку отображения времени - если 4 минуты - то 04 минуты и т.д.
+        if (!timerSwitch3) {
+          timer = millis();
+          timerSwitch3 = 1;
+        }
+
+        DateTime now = rtc.now();
+
+        uint16_t readings = 0;
+        for (int i = 0; i < 10; i++) {            // Make multiple measurements to take average from, avoiding large fluctuations
+          readings += analogRead(TEMP);                         // Read the temperature sensor's output
+          delay(50);
+        }
+        temperature = ((((((readings / 10) * 5.0) / 1024) - 0.5) * 100) - 0); // Convert the average voltage output to degrees Celsius
+
+        lcd.setCursor(0, 0);
+        lcd.print(F("Date: "));
+
+        if (now.day() < 10) {
+          lcd.print(F("0"));
+          lcd.print(now.day());
+        } else {
+          lcd.print(now.day());
+        }
+        lcd.print(F("/"));
+
+        if (now.month() < 10) {
+          lcd.print(F("0"));
+          lcd.print(now.month());
+        } else {
+          lcd.print(now.month());
+        }
+        lcd.print(F("/"));
+        lcd.print(now.year());
+        lcd.print(F("    "));
+
+        lcd.setCursor(0, 1);
+        lcd.print(F("Time: "));
+
+        if (now.hour() < 10) {
+          lcd.print(F("0"));
+          lcd.print(now.hour());
+        } else {
+          lcd.print(now.hour());
+        }
+        lcd.print(F(":"));
+
+        if (now.minute() < 10) {
+          lcd.print(F("0"));
+          lcd.print(now.minute());
+        } else {
+          lcd.print(now.minute());
+        }
+        lcd.print(F(":"));
+
+        if (now.second() < 10) {
+          lcd.print(F("0"));
+          lcd.print(now.second());
+        } else {
+          lcd.print(now.second());
+        }
+        lcd.print(F("       "));
+
+        lcd.setCursor(0, 2);
+        lcd.print(F("Ambient temp: "));
+        lcd.print(temperature, 1);                          // Print temperature with single decimal
+        lcd.print(char(223));
+        lcd.print(F("C"));
+        lcd.setCursor(0, 3);
+        lcd.print(F("                    "));
+
+        if ((millis() - timer) >= 3000) {
+          page = 2;
+        }
+      } break;
+
+    case 2: {
+        uint16_t readings2 = 0;
+        for (int j = 0; j < 20; j++) {            // Make multiple measurements to take average from, avoiding large fluctuations
+          readings2 += analogRead(A6);
+          delay (50);
+        }
+        r = (((readings2 / 20) / 0.91) / 100);
+        r2 = map (r, 0.4, 7.8, 1.18, 7);
+        r3 = (r - (r2 * 0.15));
+
+        lcd.setCursor(0, 0);
+        lcd.print(F("                    "));
+        lcd.setCursor(0, 1);
+        lcd.print(F("   RESISTANCE:      "));
+        lcd.setCursor(0, 2);
+        lcd.print(F("      "));
+        lcd.print(r3, 2);
+        lcd.print(F(" Ohm        "));
+
+        if (!timerSwitch2) {
+          lcd.setCursor(0, 3);
+          lcd.print(F("        OK ?        "));
+          timer = millis();
+          timerSwitch2 = 1;
+        } else {
+          if ((millis() - timer) >= 400) {
+            lcd.setCursor(0, 3);
+            lcd.print(F("                    "));
+          }
+          if ((millis() - timer) >= 800) {
+            timerSwitch2 = !timerSwitch2;
+          }
+        }
+
+        if (!digitalRead(ENTER)) {
+          delay (500);
+          page = 3;
+        }
+      } break;
+
+    case 3: {
+        if (!timerSwitch6) {
+          lcd.setCursor(7, 2);
+          lcd.print(F("                     "));
+          timerSwitch6 = 1;
+        }
+
+        if (!digitalRead(ENTER)) {                                 //states of work of encoder button  - or control of work, or switch off the device
+          stateOn = (millis () - stateOff);
+          switch (stateOn) {
+            case  200 ... 400: {
+                clickSymbol = 1;
+                delay (500);
+              }
+              break;
+
+            case 1000 ... 5000: {
+                w = 0;
+                delay(1000);
+                page = 4;
+              }
+              break;
+          }
+        } else {
+          if (clickSymbol) {
+            (nextSymbol < 9) ? nextSymbol ++ : nextSymbol = 0;
+          }
+          clickSymbol = 0;
+          stateOff = millis ();
+        }
+
+        lcd.setCursor(0, 0);
+        lcd.print(F("Enter WELDING PLACE:"));
+        lcd.setCursor(0, 1);
+        lcd.print(F("                    "));
+        if (!digitalRead(SELECTOR)) {
+          delay(150);
+          (w < 32) ? w ++ : w = 0 ;
+        }
+
+        lcd.setCursor(0, 2);
+        lcd.print(F("  ["));
+        lcd.setCursor(3, 2);
+        place [nextSymbol] = char(o[w]);
+        lcd.print(place);
+        lcd.print(F("]   "));
+
+        lcd.setCursor(0, 3);
+        lcd.print(F("                    "));
+
+      } break;
+
+    case 4: {
+
+        if (!digitalRead(ENTER)) {                                 //states of work of encoder button  - or control of work, or switch off the device
+          stateOn2 = (millis () - stateOff2);
+          switch (stateOn2) {
+            case  200 ... 400: {
+                clickSymbol2 = 1;
+                delay (500);
+              }
+              break;
+
+            case 1000 ... 5000: {
+                w = 0;
+                delay(1000);
+                page = 5;
+              }
+              break;
+          }
+        } else {
+          if (clickSymbol2) {
+            (nextSymbol2 < 9) ? nextSymbol2 ++ : nextSymbol = 0;
+          }
+          clickSymbol2 = 0;
+          stateOff2 = millis ();
+        }
+
+        lcd.setCursor(0, 0);
+        lcd.print(F("Enter WELDER NAME:  "));
+        lcd.setCursor(0, 1);
+        lcd.print(F("                    "));
+        if (!digitalRead(SELECTOR)) {
+          delay(150);
+          (w < 32) ? w ++ : w = 0 ;
+        }
+
+        if (!timerSwitch7) {
+          lcd.setCursor(7, 2);
+          lcd.print(F("                     "));
+          timerSwitch7 = 1;
+        }
+
+        lcd.setCursor(0, 2);
+        lcd.print(F("  ["));
+        lcd.setCursor(3, 2);
+        welder [nextSymbol2] = char(o[w]);
+        lcd.print(welder);
+        lcd.print(F("]   "));
+
+        lcd.setCursor(0, 3);
+        lcd.print(F("                    "));
+
+      } break;
+
+    case 5: {
+        if (!digitalRead(SELECTOR)) {
+          delay (1000);
+          opinion = !opinion;
+        }
+
+        if (!opinion) {
+          if (!timerSwitch1) {
+            lcd.setCursor(0, 0);
+            lcd.print(F("                    "));
+            lcd.setCursor(0, 1);
+            lcd.print(F("#AUTOMATED          "));
+            lcd.setCursor(0, 2);
+            lcd.print(F("#MANUAL             "));
+            lcd.setCursor(0, 3);
+            lcd.print(F("                    "));
+            timer = millis();
+            timerSwitch1 = 1;
+          } else {
+            if ((millis() - timer) >= 400) {
+              lcd.setCursor(1, 1);
+              lcd.print(F("         "));
+            }
+            if ((millis() - timer) >= 800) {
+              timerSwitch1 = !timerSwitch1;
+            }
+          }
+          if (!digitalRead(ENTER)) {
+            delay (1000);
+            page = 20;
+          }
+        } else {
+          if (!timerSwitch1) {
+            lcd.setCursor(0, 0);
+            lcd.print(F("                    "));
+            lcd.setCursor(0, 1);
+            lcd.print(F("#AUTOMATED          "));
+            lcd.setCursor(0, 2);
+            lcd.print(F("#MANUAL             "));
+            lcd.setCursor(0, 3);
+            lcd.print(F("                    "));
+            timer = millis();
+            timerSwitch1 = 1;
+          } else {
+            if ((millis() - timer) >= 400) {
+              lcd.setCursor(1, 2);
+              lcd.print(F("      "));
+            }
+            if ((millis() - timer) >= 800) {
+              timerSwitch1 = !timerSwitch1;
+            }
+          }
+          if (!digitalRead(ENTER)) {
+            delay (1000);
+            page = 6;
+          }
+        }
+      } break;
+
+    case 6: {
+        lcd.setCursor(0, 0);
+        lcd.print(F("Enter fusion voltage"));
+        lcd.setCursor(0, 1);
+        lcd.print(F("                    "));
+        if (!digitalRead(SELECTOR)) {
+          delay(350);
+          (u < 48) ? u += 0.5 : u = 12 ;
+        }
+        lcd.setCursor(0, 2);
+        lcd.print(F("     U = "));
+        lcd.print(u , 1);
+        lcd.print(F(" Volts "));
+        lcd.setCursor(0, 3);
+        lcd.print(F("                    "));
+        if (!digitalRead(ENTER)) {
+          delay (1000);
+          page = 7;
+        }
+      } break;
+
+    case 7: {
+        lcd.setCursor(0, 0);
+        lcd.print(F("Enter fusion time:  "));
+        lcd.setCursor(0, 1);
+        lcd.print(F("                    "));
+        if (!digitalRead(SELECTOR)) {
+          delay(150);
+          (timeWeld < 1500) ? timeWeld += 5 : timeWeld = 10 ;
+        }
+        lcd.setCursor(0, 2);
+        lcd.print(F("   time = "));
+        lcd.print(timeWeld);
+        lcd.print(F(" sec.    "));
+        lcd.setCursor(0, 3);
+        lcd.print(F("                    "));
+
+        if (!digitalRead(ENTER)) {
+          delay (1000);
+          page = 8;
+        }
+      } break;
+
+    case 8: {               //uprove - time & voltage
+        lcd.setCursor(0, 0);
+        lcd.print(F("Check welding param:"));
+        lcd.setCursor(0, 1);
+        lcd.print(F("Fusion Voltage "));
+        lcd.print(u , 1);
+        lcd.print(F("V"));
+        lcd.setCursor(0, 2);
+        lcd.print(F("Fusion time    "));
+        lcd.print(timeWeld);
+        lcd.print(F("s"));
+
+        if (!timerSwitch3) {
+          lcd.setCursor(0, 3);
+          lcd.print(F("        OK ?        "));
+          timer = millis();
+          timerSwitch3 = 1;
+        } else {
+          if ((millis() - timer) >= 400) {
+            lcd.setCursor(0, 3);
+            lcd.print(F("                    "));
+          }
+          if ((millis() - timer) >= 800) {
+            timerSwitch3 = !timerSwitch3;
+          }
+        }
+
+        if (!digitalRead(ENTER)) {
+          delay (1000);
+          page = 9;
+          // timerSwitch3 = 0;
+        }
+      } break;
+
+    case 9: {
+        lcd.setCursor(0, 0);
+        lcd.print(F("                    "));
+        lcd.setCursor(0, 1);
+        lcd.print(F("     WARNING!       "));
+        lcd.setCursor(0, 2);
+        lcd.print(F("   Start Welding!   "));
+        lcd.setCursor(0, 3);
+        lcd.print(F("                    "));
+        delay (1000);
+        page = 10;
+      } break;
+
+    case 10: {
+
+        if (!timerSwitch4) {
+          timer = millis();
+          lcd.setCursor(0, 3);
+          lcd.print(F("####################"));
+          lcd.setCursor(13, 2);
+          lcd.print(F("    "));
+          lcd.setCursor(0, 0);
+          lcd.print(F("                    "));
+          lcd.setCursor(0, 1);
+          lcd.print(F("                    "));
+          timerSwitch4 = 1;
+        }
+
+        timer2 = (timeWeld - ((millis() - timer) / 1000));
+
+        lcd.setCursor(0, 0);
+        lcd.print(F("Operator: "));
+        lcd.print(welder);
+        lcd.setCursor(0, 1);
+        lcd.print(F("Location: "));
+        lcd.print(place);
+
+        lcd.setCursor(0, 2);
+        lcd.print(F("Fusion Time: "));
+        lcd.print(timer2);
+        lcd.print(F("sec "));
+
+        if (timer2 < 1000) {
+          lcd.setCursor(19, 2);
+          lcd.print(F(" "));
+          if (timer2 < 100) {
+            lcd.setCursor(18, 2);
+            lcd.print(F(" "));
+            if (timer2 < 10) {
+              lcd.setCursor(17, 2);
+              lcd.print(F(" "));
+            }
+          }
+        }
+
+        if (timeWeld > 15) {
+          counter = ((timer2 * 20) / timeWeld);
+          lcd.setCursor(counter, 3);
+          lcd.print(F(" "));
+        } else {
+          counter = ((timer2 * 20) / timeWeld);
+          lcd.setCursor(counter, 3);
+          lcd.print(F("  "));
+        }
+
+        if (timer2 == 0) {
+          page = 11;
+        }
+
+      } break;
+
+    case 11: {
+        lcd.setCursor(0, 0);
+        lcd.print(F("                    "));
+        lcd.setCursor(0, 1);
+        lcd.print(F("    FUSION DONE     "));
+        lcd.setCursor(0, 2);
+        lcd.print(F("     NO ERRORS      "));
+        lcd.setCursor(0, 3);
+        lcd.print(F("                    "));
+
+        delay (2000);
+        page = 12;
+      } break;
+
+    case 12: {
+        lcd.setCursor(0, 0);
+        lcd.print(F("                    "));
+        lcd.setCursor(0, 1);
+        lcd.print(F("  Writting MEMORY   "));
+        lcd.setCursor(0, 2);
+        lcd.print(F("   PLEASE WAIT!     "));
+        lcd.setCursor(0, 3);
+        lcd.print(F("                    "));
+
+        delay (1000);
+        page = 13;
+
+      } break;
+
+    case 13: {
+
+        EEPROM.get (0, number);
+        myFile = SD.open("welding.txt", FILE_WRITE);
+        myFile.print(" ");
+        if (number < 1000) {
+          myFile.print(" ");
+          if (number < 100) {
+            myFile.print(" ");
+            if (number < 10) {
+              myFile.print(" ");
+            }
+          }
+        }
+        myFile.print(number);
+        myFile.print(". ");
+
+        if (daY < 10) {
+          myFile.print("0");
+          myFile.print(daY);
+        } else {
+          myFile.print(daY);
+        }
+        myFile.print("/");
+        if (montH < 10) {
+          myFile.print("0");
+          myFile.print(montH);
+        } else {
+          myFile.print(montH);
+        }
+        myFile.print("/");
+        myFile.print(yeaR);
+        myFile.print(" ");
+
+        if (houR < 10) {
+          myFile.print("0");
+          myFile.print(houR);
+        } else {
+          myFile.print(houR);
+        }
+        myFile.print(":");
+        if (minutE < 10) {
+          myFile.print("0");
+          myFile.print(minutE);
+        } else {
+          myFile.print(minutE);
+        }
+        myFile.print(" [");
+        myFile.print(place);
+        if (nextSymbol < 9) {
+          myFile.print(" ");
+          if (nextSymbol < 8) {
+            myFile.print(" ");
+            if (nextSymbol < 7) {
+              myFile.print(" ");
+              if (nextSymbol < 6) {
+                myFile.print(" ");
+                if (nextSymbol < 5) {
+                  myFile.print(" ");
+                  if (nextSymbol < 4) {
+                    myFile.print(" ");
+                    if (nextSymbol < 3) {
+                      myFile.print(" ");
+                      if (nextSymbol < 2) {
+                        myFile.print(" ");
+                        if (nextSymbol < 1) {
+                          myFile.print(" ");
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        myFile.print("] [");
+        myFile.print(welder);
+        if (nextSymbol2 < 9) {
+          myFile.print(" ");
+          if (nextSymbol2 < 8) {
+            myFile.print(" ");
+            if (nextSymbol2 < 7) {
+              myFile.print(" ");
+              if (nextSymbol2 < 6) {
+                myFile.print(" ");
+                if (nextSymbol2 < 5) {
+                  myFile.print(" ");
+                  if (nextSymbol2 < 4) {
+                    myFile.print(" ");
+                    if (nextSymbol2 < 3) {
+                      myFile.print(" ");
+                      if (nextSymbol2 < 2) {
+                        myFile.print(" ");
+                        if (nextSymbol2 < 1) {
+                          myFile.print(" ");
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        myFile.print("] ");
+        myFile.print(u);
+        myFile.print(" Volts ");
+        myFile.print(timeWeld);
+        if (timeWeld < 1000) {
+          myFile.print(" ");
+          if (timeWeld < 100) {
+            myFile.print(" ");
+            if (timeWeld < 10) {
+              myFile.print(" ");
+            }
+          }
+        }
+        myFile.print(" sec. ");
+        myFile.print(r3);
+        myFile.print(" Ohm ");
+        if (opinion) {
+          myFile.print(" MANUAL  ");
+        } else {
+          myFile.print(res);
+          myFile.print(" Ohm ");
+        }
+
+        myFile.print("DONE");
+        myFile.println();
+        myFile.close();                             // close the file:
+
+        number++;
+        EEPROM.put (0, number);
+
+        opinion = 0;
+        c = 0;
+        x = 0;
+        res = 0;
+        timerWeld = 0;
+        voltage = 0;
+        counter = 0;
+        timerSwitch1 = 0;
+        timerSwitch2 = 0;
+        timerSwitch3 = 0;
+        timerSwitch4 = 0;
+        timerSwitch5 = 0;
+        timerSwitch6 = 0;
+        timerSwitch7 = 0;
+        timerSwitch8 = 0;
+        clickSymbol = 0;
+        clickSymbol2 = 0;
+        nextSymbol = 0;
+        nextSymbol2 = 0;
+        softReset ();
+      } break;
+
+    case 20: {
+
+        lcd.setCursor(0, 0);
+        lcd.print(F("                    "));
+        lcd.setCursor(0, 1);
+        lcd.print(F("       PLEASE       "));
+        lcd.setCursor(0, 2);
+        lcd.print(F("    Scan BARCODE    "));
+        lcd.setCursor(0, 3);
+        lcd.print(F("                    "));
+
+        if (keyboard.available()) {
+          char c = keyboard.read();
+          if (c == PS2_ENTER) {
+            x = 0;
+          } else {
+            x++;
+            if (x == 13) {
+              voltage = ((c - 48) * 10);
+            }
+            if (x == 14) {
+              voltage = ((c - 48) + voltage);
+            }
+            if (x == 15) {
+              res = (c - 48);
+            }
+            if (x == 16) {
+              res = (((c - 48) * 0.1) + res);
+            }
+            if (x == 17) {
+              res = (((c - 48) * 0.01) + res);
+            }
+            if (x == 19) {
+              timerWeld = ((c - 48) * 100);
+            }
+            if (x == 20) {
+              timerWeld = (((c - 48) * 10) + timerWeld);
+            }
+            if (x == 21) {
+              timerWeld = ((c - 48) + timerWeld);
+            }
+          }
+        }
+
+        if ((timerWeld > 0) && (voltage > 0)) {
+          if ((timerWeld < 1500) && (voltage < 48)) {
+            if (!timerSwitch5) {
+              timer = millis();
+              timerSwitch5 = 1;
+            } else {
+              if ((millis() - timer) >= 600) {
+                page = 21;
+              }
+            }
+          }
+        }
+
+      } break;
+
+    case 21: {
+
+        if (!timerSwitch8) {
+          lcd.setCursor(0, 0);
+          lcd.print(F("   Fusion Data:     "));
+          lcd.setCursor(0, 1);
+          lcd.print(F("Voltage = "));
+          lcd.print (voltage, 1);
+          lcd.print(F(" V    "));
+          lcd.setCursor(0, 2);
+          lcd.print(F("Resistance:"));
+          lcd.print (res, 2);
+          lcd.print(F(" Ohm "));
+          lcd.setCursor(0, 3);
+          lcd.print(F("Fusion time:"));
+          lcd.print(timerWeld);
+          lcd.print(F(" sec"));
+          timer = millis();
+          timerSwitch8 = 1;
+        } else {
+          if ((millis() - timer) >= 1000) {
+            lcd.setCursor(0, 0);
+            lcd.print(F("                    "));
+            lcd.setCursor(0, 1);
+            lcd.print(F("     DATA OK?       "));
+            lcd.setCursor(0, 2);
+            lcd.print(F("  OK - Press ENTER  "));
+            lcd.setCursor(0, 3);
+            lcd.print(F(" NOT - Press SELECT "));
+          }
+          if ((millis() - timer) >= 2000) {
+            timerSwitch8 = !timerSwitch8;
+          }
+        }
+
+        if (!digitalRead(SELECTOR)) {
+          delay (600);
+          timerSwitch5 = 0;
+          timerSwitch8 = 0;
+          c = 0;
+          x = 0;
+          res = 0;
+          timerWeld = 0;
+          voltage = 0;
+          page = 20;
+        }
+
+        // вставить сравнение сопротивления измеренного и с штрихкода!!!!
+
+        if (!digitalRead(ENTER)) {
+          delay (700);
+          u = voltage;
+          timeWeld = timerWeld;
+          page = 8;
+        }
+
+      } break;
+
+/*    case 22: {
+        for (int i = 5; i <= 128; i++) {
+          dimming = i;
+          delay(10);
+        }
+      } break;
+*/
+    case 23: {
+
+      } break;
+
+    case 24: {
+
+      } break;
+  }
+}
+
+void softReset () {
+  asm volatile ("  jmp 0");
+}
+
+//the interrupt function must take no parameters and return nothing
+void zero_crosss_int()  //function to be fired at the zero crossing to dim the light
+{
+  // Firing angle calculation : 1 full 50Hz wave =1/50=20ms
+  // Every zerocrossing thus: (50Hz)-> 10ms (1/2 Cycle)
+  // For 60Hz => 8.33ms (10.000/120)
+  // 10ms=10000us
+  // (10000us - 10us) / 128 = 75 (Approx) For 60Hz =>65
+
+  int dimtime = (75 * dimming);  // For 60Hz =>65
+  delayMicroseconds(dimtime);    // Wait till firing the TRIAC
+  digitalWrite(AC_LOAD, HIGH);   // Fire the TRIAC
+  delayMicroseconds(10);         // triac On propogation delay
+  // (for 60Hz use 8.33) Some Triacs need a longer period
+  digitalWrite(AC_LOAD, LOW);    // No longer trigger the TRIAC (the next zero crossing will swith it off) TRIAC
+}
