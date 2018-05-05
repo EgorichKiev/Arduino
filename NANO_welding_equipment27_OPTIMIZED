@@ -1,4 +1,4 @@
-#include <PS2Keyboard.h>                            //work only on pin 2 and pin 3!!!! do not relokatte
+#include <PS2Keyboard.h>                            //work only on pin 2 and pin 3!!!! do not relocate
 #include <LiquidCrystal.h>
 #include <Wire.h>
 #include <RTClib.h>                                 //works only on i2C!!!
