@@ -1,0 +1,98 @@
+#include <Wire.h>
+#include <Adafruit_MLX90614.h>
+#include <Adafruit_NeoPixel.h>
+
+Adafruit_MLX90614 mlx = Adafruit_MLX90614();
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(1, 4);
+
+volatile float t = 0;
+volatile float tSet = 0;
+uint32_t timer1 = 0;
+uint32_t timer2 = 0;
+uint32_t timer3 = 0;
+bool beginCool;
+bool coolDone;
+bool soundStop = 0;
+bool coolStop = 0;
+bool z = 0;
+bool tempMeasure;
+
+uint32_t w = 0;
+uint32_t w2 = 0;
+
+void setup() {
+
+  pinMode(A0, INPUT);     // potentiometer... v upr. only to 1/2 vcc!!! free to use - D0 - pwm motor D1 (led buildin) - hot led D3 - cool led D4 - busser
+  pinMode(4, OUTPUT);     // D4 - COOLER
+  pinMode(3, OUTPUT);     // D3 - COOL LED... когда грузиться при старте бутлодер ардуино - появляется единица на этом выходе, т.е. его можно только под постоянно вкл. индикацию ставить!
+  pinMode(1, OUTPUT);     // D1 - BUZZER
+  mlx.begin();
+
+}
+
+void loop() {
+
+  t = mlx.readObjectTempC();
+  tSet = (((analogRead(A0) - 788) * 0.114) + 32);           //по факту - нету предела 70 градусов, есть максимум 45-50 на горячем дне чашки - нужно убирать нижний предел
+
+  if ((t >= tSet) && !coolStop && !coolDone) {
+    if (!beginCool) {
+      timer1 = millis();
+      beginCool = 1;
+    }
+    strip.setPixelColor(0, 255, 0, 0);                                    //red color
+    strip.show();
+    digitalWrite (3, 1);
+  }
+
+  if (t < tSet && !beginCool) {
+    digitalWrite (3, 0);
+    strip.setPixelColor(0, 0, 0, 255);                                    //blue color
+    strip.show();
+  }
+
+  if ((t <= (tSet - 3)) && beginCool) {
+    digitalWrite (3, 0);
+    timer1 = millis();
+    strip.setPixelColor(0, 0, 255, 0);                                    //green color
+    strip.show();
+    coolDone = 1;
+    sound();
+  }
+
+  if (((millis() - timer1) >= 600000) && beginCool && !coolDone) {                                  //ограничитель работы включенного вентилятора - чтобы не разрядить акум
+    coolStop = 1;
+    digitalWrite (3, 0);
+  }
+
+  if (coolStop) {
+    strip.setPixelColor(0, 255, 255, 255);                                    //blue color
+    strip.show();
+    delay(500);
+    strip.setPixelColor(0, 0, 0, 0);                                    //blue color
+    strip.show();
+    delay(500);
+  }
+
+  delay(300);
+}
+
+void sound () {                                         //звуковое сопровождение завершения охлаждения - звук Р2Д2
+  if (!soundStop) {
+    float noteFrequency [16] = {3520, 3135.96, 2637.02, 2093, 2349.32, 3951.07, 2793.83, 4186.01, 3520, 3135.96, 2637.02, 2093, 2349.32, 3951.07, 2793.83, 4186.01};
+    for (word i2 = 0; i2 < 16; i2++) {
+      int j;
+      float microsecondsPerWave = 1000000 / noteFrequency [i2];                  // Convert the frequency to microseconds
+      float millisecondsPerCycle = 1000 / (microsecondsPerWave * 2);             // Calculate how many HIGH/LOW cycles there are per millisecond
+      float loopTime = 100 * millisecondsPerCycle;                                // Multiply noteDuration * number or cycles per millisecond
+      // Play the note for the calculated loopTime.
+      for (word j = 0; j < loopTime; j++ ) {
+        digitalWrite (1, 1);
+        delayMicroseconds(microsecondsPerWave);
+        digitalWrite (1, 0);
+        delayMicroseconds(microsecondsPerWave);
+      }
+    }
+  }
+  soundStop = 1;                                                                  //флаг для единоразового звукового сигнала
+}
