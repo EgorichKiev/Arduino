@@ -1,0 +1,18 @@
+// include the library code:
+#include <LiquidCrystal.h>
+
+// initialize the library by associating any needed LCD interface pin
+// with the arduino pin number it is connected to
+const int rs = 12, en = 11, d4 = 9, d5 = 8, d6 = 7, d7 = 6;
+LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
+
+void setup() {
+  // set up the LCD's number of columns and rows:
+  lcd.begin(16, 2);
+  // Print a message to the LCD.
+  lcd.print("\101\240\102\241\340\105\242\243\244\245\246\113\247\115\110\117\250\120\103\124\251\252\130\253\254\342\256\255\304\257\260\261");
+}
+
+void loop() {
+ 
+}
