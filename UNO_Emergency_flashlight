@@ -1,0 +1,214 @@
+#include <Adafruit_NeoPixel.h>
+//#include <EEPROM.h>
+
+#define BLACK strip.setPixelColor(0, 0, 0, 0)
+#define WHITE strip.setPixelColor(0, 255, 255, 255)
+#define RED strip.setPixelColor(0, 255, 0, 0)
+#define RED_LOW strip.setPixelColor(0, 64, 0, 0)
+#define GREEN_LOW strip.setPixelColor(0, 0, 64, 0)
+#define GREEN strip.setPixelColor(0, 0, 255, 0)
+#define BLUE strip.setPixelColor(0, 0, 0, 255)
+#define YELOW strip.setPixelColor(0, 139, 60, 0)
+#define ORANGE strip.setPixelColor(0, 139, 15, 0)
+#define PURPLE strip.setPixelColor(0, 255, 0, 155)
+#define ROSE strip.setPixelColor(0, 255, 0, 68)
+#define WHITEBLUE strip.setPixelColor(0, 255, 0, 255)
+#define CYAN strip.setPixelColor(0, 0, 126, 68)
+
+#define RGB 10
+#define ALARM A0
+#define BUTTON 2
+#define BUZZER 3
+#define LIGHT 4
+#define ON 5
+
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(1, RGB); // number of pixels in strip; pin number
+
+uint32_t pressButton;
+uint32_t pressRelease;
+
+bool programState;
+bool shortPress;
+bool shortPressFlag;
+bool longPress;
+bool pressToOff = 0;
+bool setupFlag;
+bool alarm;
+word Setup;
+bool buttonAlarm1;
+bool buttonAlarm2;
+
+void setup() {
+
+  pinMode (ALARM, INPUT);                    //кнопки - ДВА РЕЖИМА ТРЕВОГИ - лучше поставить на тревогу - ниже левел - это ручка фонарика, выше - тревожная кнопка
+  pinMode (LIGHT, OUTPUT);                    //основной свет фонарика
+  pinMode (ON, OUTPUT);                    //светодиод  - подхват вкл.
+  pinMode (BUZZER, OUTPUT);                    //звуковая сигнализация
+  pinMode (BUTTON, INPUT);
+  strip.begin();
+  strip.show();                           // Initialize all pixels to 'off'
+
+}
+
+void loop() {
+
+  if (millis() <= 50) {
+    digitalWrite (LIGHT, 0);
+    digitalWrite (BUZZER, 0);
+    digitalWrite (ON, 0);
+  }
+
+  if (digitalRead(BUTTON)) {
+    if (!pressToOff) {
+      digitalWrite (ON, 1);
+    } else {
+      digitalWrite (ON, 0);
+    }
+  }
+
+
+  if (digitalRead(BUTTON)) {
+    switch (millis() - pressButton) {
+      case 50 ... 1000 : {                                                      //короткое нажатие
+          shortPressFlag = 1;
+          if (programState && !setupFlag) {
+            Setup ++;
+            setupFlag = 1;
+          }
+        } break;
+
+      case 2000 ... 3000: {
+          shortPressFlag = 0;
+          if (!longPress) {
+            programState = !programState;
+            pressRelease = millis();
+            longPress = 1;
+          }
+        } break;
+
+      case 5000 ... 10000: {                                                //выключение фонарика - если не находимся в меню
+          !alarm ? pressToOff = 1 : pressToOff;
+        } break;
+
+      case 12000 ... 15000: {                                                //выключение фонарика - если не находимся в меню
+          alarm ? pressToOff = 1 : pressToOff;
+        } break;
+    }
+  } else {
+    pressButton = millis();
+    setupFlag = 0;
+    if ((millis() - pressRelease) >= 50) {
+      longPress = 0;
+    }
+  }
+
+  switch (analogRead(ALARM)) {
+    case 450 ... 650: {                         // нажатие кнопки для сетапа
+        buttonAlarm1 = 1;
+      } break;
+    case 750 ... 900: {                         // нажатие тревожной кнопки
+        buttonAlarm2 = 1;
+      } break;
+    default : {
+        buttonAlarm1 = 0;
+        buttonAlarm2 = 0;
+      } break;
+  }
+
+  (buttonAlarm1 || buttonAlarm2) ? alarm = 1 : alarm ;
+
+  if (!alarm) {
+    if (!pressToOff) {
+      if (!programState) {
+        digitalWrite (LIGHT, 1);
+        ((millis() % 1500UL) < 200UL) ? GREEN_LOW : BLACK ;
+        strip.show();
+
+      } else {
+        switch (Setup) {
+          case 0: {             //рабочий режим - исходное состояние - редкомигающий зеленый - 0,3 сек - 3 сек, режим - фонарик - ярко, тускло, мигающий (сос)
+              WHITE;
+              strip.show();
+            } break;
+
+          case 1: {
+              YELOW;
+              strip.show();
+            } break;
+
+          case 2: {
+              ORANGE;
+              strip.show();
+            } break;
+
+          case 3: {
+              RED;
+              strip.show();
+            } break;
+
+          case 4: {
+              ROSE;
+              strip.show();
+            } break;
+
+          case 5: {
+              WHITEBLUE;
+              strip.show();
+            } break;
+
+          case 6: {
+              BLUE;
+              strip.show();
+            } break;
+
+          case 7: {
+              CYAN;
+              strip.show();
+            } break;
+
+          case 8: {
+              GREEN;
+              strip.show();
+            } break;
+
+          case 9: {
+
+              Setup = 0;
+            } break;
+        }
+      }
+    } else {
+      ((millis() % 1500UL) < 200UL) ? RED_LOW : BLACK ;
+      strip.show();
+    }
+  } else {
+    if (!pressToOff) {
+
+      if ((millis() % 500UL) < 250UL) {
+        if ((micros() % 30UL) < 15UL) {               //15mks pulse and 15mks pause for buzzer and 250ms duration instead of tone () function of arduino
+          digitalWrite(BUZZER, 1) ;
+        } else {
+          digitalWrite(BUZZER, 0) ;
+        }
+      }
+
+      if ((millis() % 500UL) < 250UL) {
+        digitalWrite(LIGHT, 1) ;
+      } else {
+        digitalWrite(LIGHT, 0) ;
+      }
+
+
+      ((millis() % 500UL) < 200UL) ? RED_LOW : BLACK ;
+      strip.show();
+    } else {
+      ((millis() % 1500UL) < 200UL) ? RED_LOW : BLACK ;
+      strip.show();
+    }
+  }
+
+  //tone(BUZZER, 2000, 300);  //BUZZER - pin for buzzer input
+  //EEPROM.get (0, number);   //0 - adress in memory; number - data send from memory
+  //EEPROM.put (0, number);
+
+}
