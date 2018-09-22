@@ -1,0 +1,886 @@
+#include <PS2Keyboard.h>                            //work only on pin 2 and pin 3 or 3pin and 4pin!!!! do not relokatte
+#include <LiquidCrystal_PCF8574.h>
+#include <RTClib.h>                                 //works only on i2C!!!
+#include <SD.h>
+#include <SPI.h>
+#include <Adafruit_NeoPixel.h>
+#include <EEPROM.h>
+#include <SoftwareSerial.h>
+#include <DFMiniMp3.h>
+#include <Adafruit_MLX90614.h>
+
+#define BLACK strip.setPixelColor(0, 0, 0, 0)
+
+#define RED_LOW strip.setPixelColor(0, 64, 0, 0)
+#define GREEN_LOW strip.setPixelColor(0, 0, 64, 0)
+
+
+#define BUTTON 2
+#define CLOCK_PS 3
+#define DATA_PS 4
+#define ON 5
+#define PLUS 6
+#define MINUS 7
+#define RELAY 8
+#define SD_CARD 9
+#define RGB 10
+
+#define TEMP A0
+
+#define BLACK_BOX_CURSOR lcd.print(char(255))
+#define BLANK_LINE lcd.print(F("                    "))
+
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(1, RGB); // number of pixels in strip; pin number
+
+PS2Keyboard keyboard;                                 //WARNING!!! FOR CORRECT READING OF BARCODE SCANER NEED CHANGE IN LIBRARY OF PS2KEYBOARD BUFFER_SIZE TO 64 FROM 45!!!!!
+RTC_DS1307 rtc;
+
+LiquidCrystal_PCF8574 lcd(0x3F);                                        // set the LCD address to 0x27 for a 16 chars and 2 line display and PCF8574T (0x3F for PCF8574AT)
+
+File myFile;
+
+Adafruit_MLX90614 mlx = Adafruit_MLX90614();
+
+uint32_t pressButton;
+uint32_t pressRelease;
+
+bool pressToOff;
+bool language;
+word page;
+bool plus;
+bool minus;
+
+uint32_t temp;
+float temperature;
+float t;
+
+bool permission;
+uint8_t mode;
+uint8_t fusion;
+uint8_t help;
+uint8_t handBook;
+uint8_t setup_helper;
+bool fusion_butt;
+bool backLight;
+bool lightBlink;
+
+uint16_t timerWeld;
+float res;
+float voltage;
+uint8_t x;
+char c;
+
+
+void setup() {
+
+  strip.begin();
+  strip.show();                           // Initialize all pixels to 'off'
+
+  keyboard.begin(DATA_PS, CLOCK_PS);                 //DataPin, IRQpin
+
+  lcd.begin(20, 4);
+  lcd.setBacklight(255);
+  lcd.home();
+
+  rtc.begin();
+  //rtc.adjust(DateTime(2018, 9, 16, 13, 46, 0));                     //run load once sketch with new time, second upload need to be commented
+
+  SD.begin(SD_CARD);
+
+  mlx.begin();
+
+  pinMode(PLUS, INPUT);
+  pinMode(MINUS, INPUT);
+  pinMode (BUTTON, INPUT);
+  pinMode(TEMP, INPUT);                           // A0 to measure temperature OUTSIDE/INSIDE
+
+  pinMode (ON, OUTPUT);                    //светодиод  - подхват вкл.
+  pinMode(RELAY, OUTPUT);
+
+}
+
+void loop() {
+  DateTime now = rtc.now();
+  if (digitalRead(BUTTON)) {
+    if (!pressToOff) {
+      digitalWrite (ON, 1);
+    } else {
+      digitalWrite (ON, 0);
+    }
+  } else {
+    permission = 1;
+  }
+
+  if (!pressToOff) {
+    if (!lightBlink) {
+      ((millis() % 1500UL) < 200UL) ? GREEN_LOW : BLACK ;
+      strip.show();
+    } else {
+      BLACK;
+      strip.show();
+    }
+
+    switch (page) {
+      case 0 : {
+          if (digitalRead(PLUS)) {
+            language = 1;
+          }
+          if (digitalRead(MINUS)) {
+            language = 0;
+          }
+
+          lcd.setCursor(0, 0);
+          lcd.print(F("  LANGUAGE / \261\244\256K:  "));
+
+          if (!language) {
+            lcd.setCursor(0, 2);
+            lcd.print(F("      P\251CCK\245\246       "));
+          } else {
+            lcd.setCursor(0, 2);
+            lcd.print(F("      ENGLISH       "));
+          }
+
+          if (digitalRead(BUTTON) && permission) {
+            page = 1;
+          }
+        } break;
+
+      case 1 : {                                                            //welcome page1
+          if (!language) {
+            lcd.setCursor(0, 0);
+            BLANK_LINE;
+            lcd.setCursor(0, 1);
+            lcd.print("   \244\340PABCTB\251\246TE!    ");
+            lcd.setCursor(0, 2);
+            BLANK_LINE;
+            lcd.setCursor(0, 3);
+            BLANK_LINE;
+          } else {
+            lcd.setCursor(0, 0);
+            BLANK_LINE;
+            lcd.setCursor(0, 1);
+            lcd.print("       HELLO!       ");
+            lcd.setCursor(0, 2);
+            BLANK_LINE;
+            lcd.setCursor(0, 3);
+            BLANK_LINE;
+          }
+
+          ((millis() % 1200UL) < 50UL) ? page = 2 : page ;
+
+
+        } break;
+
+      case 2 : {                                                            //welcome page2
+          if (!language) {
+            lcd.setCursor(0, 0);
+            BLANK_LINE;
+            lcd.setCursor(0, 1);
+            lcd.print("\250OMO\342H\245K CBAP\342\245KA v2");
+            lcd.setCursor(0, 2);
+            lcd.print(" \250P\245BETCTB\251ET BAC!  ");
+            lcd.setCursor(0, 3);
+            BLANK_LINE;
+          } else {
+            lcd.setCursor(0, 0);
+            BLANK_LINE;
+            lcd.setCursor(0, 1);
+            lcd.print(" WELDER HELPER v2.0 ");
+            lcd.setCursor(0, 2);
+            lcd.print("   WELCOME's YOU!   ");
+            lcd.setCursor(0, 3);
+            BLANK_LINE;
+          }
+
+          ((millis() % 2000UL) < 50UL) ? page = 3 : page ;
+
+        } break;
+
+      case 3 : {                                                            //время и температура воздуха
+          DateTime now = rtc.now();
+          tempCycleTMP36 ();
+          lcd.setCursor(0, 0);
+          (!language) ? lcd.print(F("\340ATA: ")) : lcd.print(F("Date: "));
+
+          if (now.day() < 10) {
+            lcd.print(F("0"));
+            lcd.print(now.day());
+          } else {
+            lcd.print(now.day());
+          }
+          lcd.print(F("/"));
+
+          if (now.month() < 10) {
+            lcd.print(F("0"));
+            lcd.print(now.month());
+          } else {
+            lcd.print(now.month());
+          }
+          lcd.print(F("/"));
+          lcd.print(now.year());
+          lcd.print(F("    "));
+
+          lcd.setCursor(0, 1);
+          (!language) ? lcd.print(F("BPEM\261: ")) : lcd.print(F("Time:  "));
+
+          if (now.hour() < 10) {
+            lcd.print(F("0"));
+            lcd.print(now.hour());
+          } else {
+            lcd.print(now.hour());
+          }
+          lcd.print(F(":"));
+
+          if (now.minute() < 10) {
+            lcd.print(F("0"));
+            lcd.print(now.minute());
+          } else {
+            lcd.print(now.minute());
+          }
+          lcd.print(F(":"));
+
+          if (now.second() < 10) {
+            lcd.print(F("0"));
+            lcd.print(now.second());
+          } else {
+            lcd.print(now.second());
+          }
+          lcd.print(F("     "));
+
+          lcd.setCursor(0, 2);
+          (!language) ? lcd.print(F("TEM\250EPAT\251PA:  ")) : lcd.print(F("Ambient temp: "));
+
+          lcd.print(temperature, 1);                          // Print temperature with single decimal
+          lcd.print(char(223));
+          lcd.print(F("C"));
+          lcd.setCursor(0, 3);
+          BLANK_LINE;
+
+          ((millis() % 3000UL) < 50UL) ? page = 4 : page ;
+
+        } break;
+
+      case 4 : {                                                            //меню выбора раздела - СВАРКА-СПРАВОЧНИК-ПОМОЩЬ-НАСТРОЙКИ
+          (digitalRead (BUTTON)) ? permission = 0 : permission ;
+
+          if (digitalRead(PLUS) && (mode < 9)) {
+            mode++;
+          }
+          if (digitalRead(MINUS) && (mode > 0)) {
+            mode--;
+          }
+
+          lcd.setCursor(0, 0);
+          (!language) ? lcd.print(F("   PE\243\245M PA\240OT\256:    ")) : lcd.print(F("     WORK MODE:     "));
+
+          lcd.setCursor(0, 1);
+          BLANK_LINE;
+
+          lcd.setCursor(0, 2);
+          switch (mode) {
+            case 0 ... 1 : {
+                (!language) ? lcd.print(F("       CBAPKA       ")) : lcd.print(F("       WELDING      "));
+                if (digitalRead(BUTTON) && permission) {
+                  page = 100;
+                }
+              } break;
+            case 2 ... 3 : {
+                (!language) ? lcd.print(F("     C\250PABO\253H\245K     ")) : lcd.print(F("      HANDBOOK      "));
+                if (digitalRead(BUTTON) && permission) {
+                  page = 1000;
+                }
+              } break;
+            case 4 ... 5 : {
+                (!language) ? lcd.print(F("       \250OMO\342\255       ")) : lcd.print(F("        HELP        "));
+                if (digitalRead(BUTTON) && permission) {
+                  page = 2000;
+                }
+              } break;
+            case 6 ... 7 : {
+                (!language) ? lcd.print(F("     HACTPO\246K\245      ")) : lcd.print(F("       SETUP        "));
+                if (digitalRead(BUTTON) && permission) {
+                  page = 3000;
+                }
+              } break;
+            case 8 ... 9 : {
+                (!language) ? lcd.print(F("    HA\244A\340 / B\256\254E    ")) : lcd.print(F("   BACK / STEP UP   "));   //BACK TO MENU UP
+                if (digitalRead(BUTTON) && permission) {
+                  page = 0;
+                  softReset ();
+                }
+              } break;
+          }
+
+          lcd.setCursor(0, 3);
+          BLANK_LINE;
+
+        } break;
+
+      case 100 : {                                                                          //раздел СВАРКА - СТЫКОВАЯ-ТЕРМОРЕЗИСТОРНАЯ-РАСТРУБНАЯ
+          (digitalRead (BUTTON)) ? permission = 0 : permission ;
+
+          if (digitalRead(PLUS) && (fusion < 8)) {
+            fusion++;
+          }
+          if (digitalRead(MINUS) && (fusion > 0)) {
+            fusion--;
+          }
+
+          lcd.setCursor(0, 0);
+          (!language) ? lcd.print(F("    B\245\340 CBAPK\245:     ")) : lcd.print(F("    FUSION TYPE:    "));
+
+          lcd.setCursor(0, 1);
+          BLANK_LINE;
+
+          lcd.setCursor(0, 2);
+          if ((fusion >= 0) && (fusion < 2)) {
+            (!language) ? lcd.print(F("      CT\256KOBA\261      ")) : lcd.print(F("    BUTT FUSION     "));
+            if (digitalRead(BUTTON) && permission) {
+              page = 101;
+            }
+          }
+          else if ((fusion > 1) && (fusion < 4)) {
+            (!language) ? lcd.print(F("  TEPMOPE\244\245CTOPHA\261  ")) : lcd.print(F("   ELECTROFUSION    "));
+            if (digitalRead(BUTTON) && permission) {
+              page = 400;
+            }
+          }
+          else if ((fusion > 3) && (fusion < 6)) {
+            (!language) ? lcd.print(F("     PACTP\251\240HA\261     ")) : lcd.print(F("      HANDHELD      "));
+            if (digitalRead(BUTTON) && permission) {
+              page = 800;
+            }
+          }
+          else if ((fusion > 5) && (fusion <= 8 )) {
+            (!language) ? lcd.print(F("    HA\244A\340 / B\256\254E    ")) : lcd.print(F("   BACK / STEP UP   "));   //BACK TO MENU UP
+            if (digitalRead(BUTTON) && permission) {
+              page = 4;
+            }
+          }
+
+          lcd.setCursor(0, 3);
+          BLANK_LINE;
+        } break;
+
+      case 101 : {                                                                                              //СТЫКОВАЯ СВАРКА-ПОЛУАВТОМАТ-АВТОМАТ
+          (digitalRead (BUTTON)) ? permission = 0 : permission ;
+
+          if (digitalRead(PLUS)) {
+            fusion_butt = 1;
+          }
+          if (digitalRead(MINUS)) {
+            fusion_butt = 0;
+          }
+
+          lcd.setCursor(0, 0);
+          (!language) ? lcd.print(F("B\256\240EP\245TE T\245\250 CBAPK\245:")) : lcd.print(F(" BUTT FUSION TYPE:  "));
+
+          lcd.setCursor(0, 1);
+          BLANK_LINE;
+
+          lcd.setCursor(0, 2);
+          if (fusion_butt) {
+            (!language) ? lcd.print(F(" \250O\247\251ABTOMAT\245\253ECKA\261 ")) : lcd.print(F("SEMIAUTO BUTT FUSION"));
+            if (digitalRead(BUTTON) && permission) {
+              page = 0;
+            }
+          } else {
+            (!language) ? lcd.print(F("   ABTOMAT\245\253ECKA\261   ")) : lcd.print(F("  AUTO BUTT FUSION  "));
+            if (digitalRead(BUTTON) && permission) {
+              page = 0;
+            }
+          }
+
+          lcd.setCursor(0, 3);
+          BLANK_LINE;
+
+        } break;
+
+      case 400 : {                                                                                              //ТЕРМОРЕЗИСТОРНАЯ
+          page = 0;
+        } break;
+
+      case 800 : {                                                                                              //РАСТРУБНАЯ
+          page = 0;
+        } break;
+
+      case 1000 : {                                                                         //раздел СПРАВОЧНИК
+          (digitalRead (BUTTON)) ? permission = 0 : permission ;
+
+          if (digitalRead(PLUS) && (handBook < 13)) {
+            handBook++;
+          }
+          if (digitalRead(MINUS) && (handBook > 0)) {
+            handBook--;
+          }
+
+          lcd.setCursor(0, 0);
+          (!language) ? lcd.print(F("\250OMO\342\255 C\250PABO\253H\245KA: ")) : lcd.print(F("  HELP IN HANDBOOK: "));
+
+          lcd.setCursor(0, 1);
+          BLANK_LINE;
+
+          lcd.setCursor(0, 2);
+          switch (handBook) {
+            case 0 ... 1 : {
+                (!language) ? lcd.print(F("--------------------")) : lcd.print(F("BUTT FUSION TABLETS "));
+                if (digitalRead(BUTTON) && permission) {
+                  page = 0;
+                }
+              } break;
+            case 2 ... 3 : {
+                (!language) ? lcd.print(F("--------------------")) : lcd.print(F("  SDR CALCULATION   "));
+                if (digitalRead(BUTTON) && permission) {
+                  page = 0;
+                }
+              } break;
+            case 4 ... 5 : {
+                (!language) ? lcd.print(F("--------------------")) : lcd.print(F("WALL THICKNES CALCUL"));
+                if (digitalRead(BUTTON) && permission) {
+                  page = 0;
+                }
+              } break;
+            case 6 ... 7 : {
+                (!language) ? lcd.print(F("--------------------")) : lcd.print(F("RADIUS PIPE CALCULATI"));
+                if (digitalRead(BUTTON) && permission) {
+                  page = 0;
+                }
+              } break;
+            case 8 ... 9 : {
+                (!language) ? lcd.print(F("--------------------")) : lcd.print(F("DIFERENT SDR WELDING"));
+                if (digitalRead(BUTTON) && permission) {
+                  page = 0;
+                }
+              } break;
+            case 10 ... 11 : {
+                (!language) ? lcd.print(F("--------------------")) : lcd.print(F("SIZE ADMISSIONS"));
+                if (digitalRead(BUTTON) && permission) {
+                  page = 0;
+                }
+              } break;
+            case 12 ... 13 : {
+                (!language) ? lcd.print(F("--------------------")) : lcd.print(F("   BACK / STEP UP   "));   //BACK TO MENU UP
+                if (digitalRead(BUTTON) && permission) {
+                  page = 4;
+                }
+              } break;
+
+          }
+        } break;
+
+      case 2000 : {                                                                         //раздел ПОМОЩЬ
+          (digitalRead (BUTTON)) ? permission = 0 : permission ;
+
+          if (digitalRead(PLUS) && (help < 17)) {
+            help++;
+          }
+          if (digitalRead(MINUS) && (help > 0)) {
+            help--;
+          }
+
+          lcd.setCursor(0, 0);
+          (!language) ? lcd.print(F("  KAK BAM \250OMO\253\255?   ")) : lcd.print(F("HOW YOU NEED TO HELP"));
+
+          lcd.setCursor(0, 1);
+          BLANK_LINE;
+
+          lcd.setCursor(0, 2);                        //ПОТОМ ПЕРЕДЕЛАТЬ НА ДВЕ СТРОКИ ЧТОБЫ ЗАДАВАЛО ВОПРОС
+
+          switch (help) {
+            case 0 ... 1 : {
+                (!language) ? lcd.print(F("  CKAHEP \254TP\245XKO\340A  ")) : lcd.print(F("    SCAN BARCODE    "));
+                if (digitalRead(BUTTON) && permission) {
+                  page = 2050;
+                }
+              } break;
+            case 2 ... 3 : {
+                (!language) ? lcd.print(F("\250POBEPKA TEM\250. \250\247\245T\256")) : lcd.print(F("CHECK PLATE TEMPERAT"));
+                if (digitalRead(BUTTON) && permission) {
+                  page = 2100;
+                }
+              } break;
+            case 4 ... 5 : {
+                (!language) ? lcd.print(F(" TEM\250EPAT\251PA BO\244\340\251XA")) : lcd.print(F(" AMBIENT TEMPERATURE"));
+                if (digitalRead(BUTTON) && permission) {
+                  page = 2150;
+                }
+              } break;
+            case 6 ... 7 : {
+                (!language) ? lcd.print(F("  HA\250P\261\243EH\245E CET\245   ")) : lcd.print(F(" CHECK INPUT VOLTAGE"));
+                if (digitalRead(BUTTON) && permission) {
+                  page = 2200;
+                }
+              } break;
+            case 8 ... 9 : {
+                (!language) ? lcd.print(F(" TEK\251\342\245E KOOP\340\245HAT\256 ")) : lcd.print(F("   GPS COORDINATS    "));
+                if (digitalRead(BUTTON) && permission) {
+                  page = 2250;
+                }
+              } break;
+            case 10 ... 11 : {
+                (!language) ? lcd.print(F("\243\251PHA\247 \250POBE\340\242H CBAPOK")) : lcd.print(F("HELPER FUSION JOURNA"));
+                if (digitalRead(BUTTON) && permission) {
+                  page = 2300;
+                }
+              } break;
+            case 12 ... 13 : {
+                (!language) ? lcd.print(F("\340\245A\241HOCT O\240P\251\340OBAH\245\261")) : lcd.print(F("EQUIPMENT DIAGNOSTIC"));   //MALFUNCTION
+                if (digitalRead(BUTTON) && permission) {
+                  page = 2550;
+                }
+              } break;
+            case 14 ... 15 : {
+                (!language) ? lcd.print(F("\250PAB\245\247\255HA\261 \257KC\250\247ATA\341")) : lcd.print(F("CORRECT WORK ON EQUI"));   //WELDING EQUIPMENT
+                if (digitalRead(BUTTON) && permission) {
+                  page = 2700;
+                }
+              } break;
+            case 16 ... 17 : {
+                (!language) ? lcd.print(F("    HA\244A\340 / B\256\254E    ")) : lcd.print(F("   BACK / STEP UP   "));   //BACK TO MENU UP
+                if (digitalRead(BUTTON) && permission) {
+                  page = 4;
+                }
+              } break;
+          }
+
+          lcd.setCursor(0, 3);
+          BLANK_LINE;
+        } break;
+
+      case 2050 : {                                                                                  //ПОМОЩЬ-СКАНЕР ШТРИХКОДА
+          lcd.setCursor(0, 0);
+          BLANK_LINE;
+          lcd.setCursor(0, 1);
+          (!language) ? lcd.print(F("     \250O\243A\247\251\246CTA     ")) : lcd.print(F("       PLEASE       "));
+          lcd.setCursor(0, 2);
+          (!language) ? lcd.print(F("  OTCKAH\245P\251\246TE KO\340  ")) : lcd.print(F("    Scan BARCODE    "));
+          lcd.setCursor(0, 3);
+          BLANK_LINE;
+
+          if (keyboard.available()) {
+            char c = keyboard.read();
+            if (c == PS2_ENTER) {
+              x = 0;
+            } else {
+              x++;
+              if (x == 13) {
+                voltage = ((c - 48) * 10);
+              }
+              if (x == 14) {
+                voltage = ((c - 48) + voltage);
+              }
+              if (x == 15) {
+                res = (c - 48);
+              }
+              if (x == 16) {
+                res = (((c - 48) * 0.1) + res);
+              }
+              if (x == 17) {
+                res = (((c - 48) * 0.01) + res);
+              }
+              if (x == 19) {
+                timerWeld = ((c - 48) * 100);
+              }
+              if (x == 20) {
+                timerWeld = (((c - 48) * 10) + timerWeld);
+              }
+              if (x == 21) {
+                timerWeld = ((c - 48) + timerWeld);
+              }
+            }
+          }
+
+          if ((timerWeld > 0) && (voltage > 0)) {
+            if ((timerWeld < 5000) && (voltage < 80)) {
+              ((millis() % 2000UL) < 50UL) ? page = 2051 : page ;
+            }
+          }
+
+        } break;
+
+      case 2051 : {                                                                                           // ПОКАЗ ДАННЫХ ШТРИХКОДА
+          (digitalRead (BUTTON)) ? permission = 0 : permission ;
+
+          lcd.setCursor(0, 0);
+          (!language) ? lcd.print(F("   \340AHH\256E CBAPK\245:   ")) : lcd.print(F("   Fusion Data:     "));
+          lcd.setCursor(0, 1);
+          (!language) ? lcd.print(F("HA\250P\261\243EH\245E ")) : lcd.print(F("Voltage =  "));
+          lcd.print (voltage, 1);
+          (!language) ? lcd.print(F(" B   ")) : lcd.print(F(" V   "));
+          lcd.setCursor(0, 2);
+          (!language) ? lcd.print(F("CO\250POT\245B\247EH\245E ")) : lcd.print(F("Resistance:"));
+          lcd.print (res, 2);
+          (!language) ? lcd.print(F("OM")) : lcd.print(F(" Ohm "));
+          lcd.setCursor(0, 3);
+          (!language) ? lcd.print(F("BPEM\261:      ")) : lcd.print(F("Fusion time:"));
+          lcd.print(timerWeld);
+          (!language) ? lcd.print(F(" c     ")) : lcd.print(F(" sec"));
+
+          if (digitalRead(BUTTON) && permission) {
+            page = 2000;
+            c = 0;
+            x = 0;
+            res = 0;
+            timerWeld = 0;
+            voltage = 0;
+          }
+
+        } break;
+
+      case 2100 : {                                                                                  //ПОМОЩЬ-ТЕМПЕРАТУРА ОБЪЕКТА
+          (digitalRead (BUTTON)) ? permission = 0 : permission ;
+
+          t = mlx.readObjectTempC();
+
+          lcd.setCursor(0, 0);
+          (!language) ? lcd.print(F(" TEM\250EPAT\251PA \250\247\245T\256: ")) : lcd.print(F("OBJECT TEMPERATURE: "));
+          lcd.setCursor(0, 1);
+          BLANK_LINE;
+          lcd.setCursor(0, 2);
+          (!language) ? lcd.print(F("     T = ")) : lcd.print(F("     T = "));
+          lcd.print(t, 1);
+          (!language) ? lcd.print(F(" \337C    ")) : lcd.print(F(" \337C    "));
+          lcd.setCursor(0, 3);
+          BLANK_LINE;
+
+          if (digitalRead(BUTTON) && permission) {
+            page = 2000;
+          }
+
+        } break;
+
+      case 3000 : {                                                                         //раздел НАСТРОЙКИ
+          (digitalRead (BUTTON)) ? permission = 0 : permission ;
+
+          if (digitalRead(PLUS) && (setup_helper < 15)) {
+            setup_helper++;
+          }
+          if (digitalRead(MINUS) && (setup_helper > 0)) {
+            setup_helper--;
+          }
+
+          lcd.setCursor(0, 0);
+          (!language) ? lcd.print(F("HACTPO\246K\245 \250OMO\342H\245KA:")) : lcd.print(F("   HELPER SETUP:    "));
+
+          lcd.setCursor(0, 1);
+          BLANK_LINE;
+
+          lcd.setCursor(0, 2);                        //ПОТОМ ПЕРЕДЕЛАТЬ НА ДВЕ СТРОКИ ЧТОБЫ ЗАДАВАЛО ВОПРОС
+
+          switch (setup_helper) {
+            case 0 ... 1 : {
+                (!language) ? lcd.print(F(" \250O\340CBETKA \340\245C\250\247E\261 ")) : lcd.print(F(" DISPLAY BACKLIGHT  "));
+                if (digitalRead(BUTTON) && permission) {
+                  page = 3010;
+                }
+              } break;
+            case 2 ... 3 : {
+                (!language) ? lcd.print(F("\244B\251KOBOE CO\250POBO\243\340EH")) : lcd.print(F(" SOUND DUPLICATION  "));
+                if (digitalRead(BUTTON) && permission) {
+                  page = 3020;
+                }
+              } break;
+            case 4 ... 5 : {
+                (!language) ? lcd.print(F(" CBETOBO\246 \245H\340\245KATOP ")) : lcd.print(F("  LIGHT INDICATOR    "));
+                if (digitalRead(BUTTON) && permission) {
+                  page = 3030;
+                }
+              } break;
+            case 6 ... 7 : {
+                (!language) ? lcd.print(F(" \251CTAHOBKA BPEMEH\245  ")) : lcd.print(F("    CLOCKS SETUP     "));
+                if (digitalRead(BUTTON) && permission) {
+                  page = 0;
+                }
+              } break;
+            case 8 ... 9 : {
+                (!language) ? lcd.print(F("OTK\247\260\253EH\245E \241EO\247OKA\341\245")) : lcd.print(F("   DISABLING GPS     "));
+                if (digitalRead(BUTTON) && permission) {
+                  page = 0;
+                }
+              } break;
+            case 10 ... 11 : {
+                (!language) ? lcd.print(F("O\250EPATOP\256 \250OMO\342H\245KA ")) : lcd.print(F("   HELPER OPERATORS   "));
+                if (digitalRead(BUTTON) && permission) {
+                  page = 0;
+                }
+              } break;
+            case 12 ... 13 : {
+                (!language) ? lcd.print(F(" C\240POC BCEX HACTPOEK ")) : lcd.print(F("RESET TO FACTORY SET"));   //SETTINGS
+                if (digitalRead(BUTTON) && permission) {
+                  page = 0;
+                }
+              } break;
+            case 14 ... 15 : {
+                (!language) ? lcd.print(F("    HA\244A\340 / B\256\254E    ")) : lcd.print(F("   BACK / STEP UP   "));   //BACK TO MENU UP
+                if (digitalRead(BUTTON) && permission) {
+                  page = 4;
+                }
+              } break;
+          }
+
+          lcd.setCursor(0, 3);
+          BLANK_LINE;
+        } break;
+      case 3010 : {
+          (digitalRead (BUTTON)) ? permission = 0 : permission ;
+          (!backLight) ? lcd.setBacklight(255) : lcd.setBacklight(0) ;
+
+          if (digitalRead(PLUS)) {
+            backLight = 1;
+          }
+          if (digitalRead(MINUS)) {
+            backLight = 0;
+          }
+
+          lcd.setCursor(0, 0);
+          (!language) ? lcd.print(F("     \250O\340CBETKA:     ")) : lcd.print(F("     BACKLIGHT:     "));
+
+          lcd.setCursor(0, 1);
+          BLANK_LINE;
+
+          lcd.setCursor(0, 2);
+          if (!backLight) {
+            (!language) ? lcd.print(F("      BK\247\260\253EHA      ")) : lcd.print(F("         ON         "));
+          } else {
+            (!language) ? lcd.print(F("     B\256K\247\260\253EHA      ")) : lcd.print(F("         OFF        "));
+          }
+          lcd.setCursor(0, 3);
+          BLANK_LINE;
+
+          if (digitalRead(BUTTON) && permission) {
+            page = 3000;
+          }
+
+        } break;
+
+      case 3020 : {
+
+        } break;
+
+      case 3030 : {
+          (digitalRead (BUTTON)) ? permission = 0 : permission ;
+          
+          if (digitalRead(PLUS)) {
+            lightBlink = 1;
+          }
+          if (digitalRead(MINUS)) {
+            lightBlink = 0;
+          }
+
+          lcd.setCursor(0, 0);
+          (!language) ? lcd.print(F(" CBETOBO\246 \245H\340\245KATOP ")) : lcd.print(F("  LIGHT INDICATOR:  "));
+
+          lcd.setCursor(0, 1);
+          BLANK_LINE;
+
+          lcd.setCursor(0, 2);
+          if (!lightBlink) {
+            (!language) ? lcd.print(F("      BK\247\260\253EHA      ")) : lcd.print(F("         ON         "));
+          } else {
+            (!language) ? lcd.print(F("     B\256K\247\260\253EHA      ")) : lcd.print(F("         OFF        "));
+          }
+          lcd.setCursor(0, 3);
+          BLANK_LINE;
+
+          if (digitalRead(BUTTON) && permission) {
+            page = 3000;
+          }
+        } break;
+
+
+    }
+  } else {
+    if (!lightBlink) {
+      ((millis() % 1500UL) < 200UL) ? RED_LOW : BLACK ;
+      strip.show();
+    } else {
+      BLACK;
+      strip.show();
+    }
+
+    if (!language) {
+      lcd.setCursor(0, 0);
+      lcd.print("                    ");
+      lcd.setCursor(0, 1);
+      lcd.print("     B\256K\247\260\253EH\245E     ");
+      lcd.setCursor(0, 2);
+      lcd.print("  OT\250\251CT\245TE KHO\250K\251  ");
+      lcd.setCursor(0, 3);
+      lcd.print("                    ");
+    } else {
+      lcd.setCursor(0, 0);
+      lcd.print("                    ");
+      lcd.setCursor(0, 1);
+      lcd.print("     POWER OFF      ");
+      lcd.setCursor(0, 2);
+      lcd.print("   Release BUTTON   ");
+      lcd.setCursor(0, 3);
+      lcd.print("                    ");
+    }
+
+  }
+
+  if (digitalRead(BUTTON)) {
+    pressRelease = millis();
+    switch (millis() - pressButton) {
+      case 5000 ... 10000: {
+          pressToOff = 1;
+        } break;
+    }
+  } else {
+    pressButton = millis();
+  }
+}
+
+void tempCycleTMP36 () {
+  int32_t readings = 0;                                                            //variables for temperature measurement
+
+  for (uint8_t i = 0; i < 10; i++ )  {                                     // Make multiple measurements to take average from, avoiding large fluctuations
+    readings += analogRead(TEMP);                                                        // Read the temperature sensor's output
+  }
+
+  if ((millis () - temp) >= 800) {
+    temperature = (((((readings / 10) * 5.0) / 1024) - 0.5) * 100);        // Convert the average voltage output to degrees Celsius
+    temp = millis ();
+  }
+}
+
+void softReset () {
+  asm volatile ("jmp 0");
+}
+/*
+   структура:
+   смена языка - процесс сварки - терморезисторная
+                                - стыковая
+                                - раструбная
+               - справочник - таблицы сварки стыковых полуавтоматов
+                            - расчет сдр
+                            - расчет стенки под нужное давление
+                            - расчет минимального радиуса
+                            - сварка разных сдр
+                            - несоосность
+               - помощь сварщику - сканер штрихкода
+                                 - термометр для плиты
+                                 - температура окружающей среды
+                                 - напряжение питания сети?
+                                 - местоположение (ГПС)
+                                 - журнал сварок с помощником
+                                 - диагностика проблем с оборудованием - не работает гидравлика
+                                                                       - не греет плита
+                                                                       - не работает сканер
+                                                                       - не торцует
+                                                                       - не одеваются наконечники на муфту
+                                 - правильная работа с оборудованием - как снимать наконечники
+                                                                     - какое должно быть давление на торцевание
+                                                                     - как продлить срок службы оборудования
+                                                                     - какое масло заливать в гидравлику
+
+                - настройки - подсветка дисплея
+                            - звук
+                            - визуальный индикатор режима работы
+                            - дата-время
+                            - отключение гпс
+                            - ввод операторов, работающих с помощником
+                            - сброс настроек
+
+*/
