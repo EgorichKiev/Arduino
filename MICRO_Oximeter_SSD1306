@@ -1,0 +1,87 @@
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <Wire.h>
+#include "MAX30100_PulseOximeter.h"
+
+#define REPORTING_PERIOD_MS 2000
+
+#define OLED_RESET 5 //reset pin from oled to arduino, other - (2,3)
+Adafruit_SSD1306 display(OLED_RESET);
+
+PulseOximeter pox;
+uint32_t tsLastReport = 0;
+
+float bpm;
+float bpm_2;
+char Bpm[3]; //empty char array to hold the converted temp float
+float spo2;
+float spo2_2;
+char SpO2[4]; //empty char array to hold the converted temp float
+
+uint32_t timer2;
+bool beat;
+
+void onBeatDetected()
+{
+  if (!beat) {
+    timer2 = millis ();
+    beat = 1;
+  }
+
+  if ((millis () - timer2) >= 200) {
+    beat = 0;
+  }
+}
+
+void setup(void) {
+  pox.begin();
+  pox.setOnBeatDetectedCallback(onBeatDetected);
+  pox.setIRLedCurrent(MAX30100_LED_CURR_7_6MA);
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C); // initialize with the I2C addr 0x3C (for the 128x32)
+  display.clearDisplay();
+}
+
+void loop(void) {
+
+  pox.update();
+
+  if (millis() - tsLastReport > REPORTING_PERIOD_MS) {
+
+    bpm = pox.getHeartRate();
+    bpm *= 1.4;                       // найти причину неправильного ритма - где-то в 1,5 раза отличается от реального!!!
+    spo2 = pox.getSpO2();
+
+    tsLastReport = millis();
+  }
+
+  display.clearDisplay ();
+  display.setCursor(0, 0); // Set the cursor at the beginning of the display
+  display.setTextSize(2); // Set the text size
+  display.setTextColor(WHITE);
+  display.print(" BPM  SpO2");
+
+  
+    display.setCursor(5, 20); // Set the cursor at the beginning of the display
+    display.setTextSize(3); // Set the text size
+    display.setTextColor(WHITE);
+    display.print(bpm, 0);
+  
+
+
+  display.setCursor(75, 20); // Set the cursor at the beginning of the display
+  display.setTextSize(3); // Set the text size
+  display.setTextColor(WHITE);
+  display.print(spo2, 0);
+
+
+
+  if (beat) {
+    display.setCursor(57, 42); // Set the cursor at the beginning of the display
+    display.setTextSize(3); // Set the text size
+    display.setTextColor(WHITE);
+    display.write(3);
+    display.println();
+  }
+
+  display.display();
+}
